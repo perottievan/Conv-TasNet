@@ -1,3 +1,6 @@
-librosa
+torch==0.4.1
+resampy==0.3.1
+numba==0.48
+librosa==0.7
 mir_eval
 visdom
