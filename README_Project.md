@@ -1,7 +1,7 @@
 Instructions for running:
 
 1. Create a new conda environment with python 3.6  
-2. Use the command “conda install pytorch=0.4.1  
+2. Use the command “conda install pytorch=0.4.1"  
 3. Install [this](https://drive.google.com/file/d/15yyaspC7DpuiXuvv67Qc-2AQYBUA8RL6/view?usp=share_link) requirements.txt  
 4. Clone the [project from github](https://github.com/kaituoxu/Conv-TasNet)  
 5. From the root directory of the project, navigate to the egs/wsj0 directory.  
