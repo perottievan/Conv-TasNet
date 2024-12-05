@@ -45,6 +45,10 @@ class Solver(object):
             self.vis_window = None
             self.vis_epochs = torch.arange(1, self.epochs + 1)
 
+        self.model_repeats = args.R
+        self.model_blocks = args.X
+        self.epoch_weights = []
+    
         self._reset()
 
     def _reset(self):
@@ -66,6 +70,27 @@ class Solver(object):
         self.halving = False
         self.val_no_impv = 0
 
+    def get_weights(self):
+        lst_weights = {}
+        p_relu_str_1 = "module.separator.network.2.{}.{}.net.1.weight"
+        p_relu_str_2 = "module.separator.network.2.{}.{}.net.3.net.1.weight"
+        global_1 = "module.separator.network.2.{}.{}.net.2.gamma"
+        global_2 = "module.separator.network.2.{}.{}.net.3.net.2.gamma"
+        st_dict = self.model.state_dict()
+        for r in range(self.model_repeats):
+            for x in range(self.model_blocks):
+                temp = p_relu_str_1.format(r, x)
+                lst_weights[(r, x, "act1")] = st_dict[temp]
+                # print(f"is this workin? {temp} {st_dict[temp]}")
+                temp = p_relu_str_2.format(r, x)
+                lst_weights[(r, x, "act2")] = st_dict[temp]
+                temp = global_1.format(r, x)
+                lst_weights[(r, x, "global1")] = st_dict[temp]
+                temp = global_2.format(r, x)
+                lst_weights[(r, x, "global2")] = st_dict[temp]
+        # print(f'heyy {lst_weights}')
+        return lst_weights
+    
     def train(self):
         # Train model multi-epoches
         for epoch in range(self.start_epoch, self.epochs):
@@ -80,6 +105,9 @@ class Solver(object):
                       epoch + 1, time.time() - start, tr_avg_loss))
             print('-' * 85)
 
+            # Save weights after each epoch
+            self.epoch_weights.append(self.get_weights())
+        
             # Save model each epoch
             if self.checkpoint:
                 file_path = os.path.join(
