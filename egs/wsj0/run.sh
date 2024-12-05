@@ -32,6 +32,7 @@ H=512
 P=3
 X=8
 R=4
+activation_combo="relu,relu"
 norm_type=gLN
 causal=0
 mask_nonlinear='relu'
@@ -123,6 +124,7 @@ if [ $stage -le 2 ]; then
     --X $X \
     --R $R \
     --C $C \
+    --activation_combo $activation_combo \
     --norm_type $norm_type \
     --causal $causal \
     --mask_nonlinear $mask_nonlinear \

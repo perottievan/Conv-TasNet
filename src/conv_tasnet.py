@@ -11,7 +11,7 @@ EPS = 1e-8
 
 
 class ConvTasNet(nn.Module):
-    def __init__(self, N, L, B, H, P, X, R, C, norm_type="gLN", causal=False,
+    def __init__(self, N, L, B, H, P, X, R, C, activation_combo, norm_type="gLN", causal=False,
                  mask_nonlinear='relu'):
         """
         Args:
@@ -30,12 +30,13 @@ class ConvTasNet(nn.Module):
         super(ConvTasNet, self).__init__()
         # Hyper-parameter
         self.N, self.L, self.B, self.H, self.P, self.X, self.R, self.C = N, L, B, H, P, X, R, C
+        self.activation_combo = activation_combo
         self.norm_type = norm_type
         self.causal = causal
         self.mask_nonlinear = mask_nonlinear
         # Components
         self.encoder = Encoder(L, N)
-        self.separator = TemporalConvNet(N, B, H, P, X, R, C, norm_type, causal, mask_nonlinear)
+        self.separator = TemporalConvNet(N, B, H, P, X, R, C, activation_combo, norm_type, causal, mask_nonlinear)
         self.decoder = Decoder(N, L)
         # init
         for p in self.parameters():
@@ -70,6 +71,7 @@ class ConvTasNet(nn.Module):
     def load_model_from_package(cls, package):
         model = cls(package['N'], package['L'], package['B'], package['H'],
                     package['P'], package['X'], package['R'], package['C'],
+                    package['activation_combo'], 
                     norm_type=package['norm_type'], causal=package['causal'],
                     mask_nonlinear=package['mask_nonlinear'])
         model.load_state_dict(package['state_dict'])
@@ -81,6 +83,7 @@ class ConvTasNet(nn.Module):
             # hyper-parameter
             'N': model.N, 'L': model.L, 'B': model.B, 'H': model.H,
             'P': model.P, 'X': model.X, 'R': model.R, 'C': model.C,
+            'activation_combo': model.activation_combo, 
             'norm_type': model.norm_type, 'causal': model.causal,
             'mask_nonlinear': model.mask_nonlinear,
             # state
@@ -143,7 +146,7 @@ class Decoder(nn.Module):
 
 
 class TemporalConvNet(nn.Module):
-    def __init__(self, N, B, H, P, X, R, C, norm_type="gLN", causal=False,
+    def __init__(self, N, B, H, P, X, R, C, activation_combo, norm_type="gLN", causal=False,
                  mask_nonlinear='relu'):
         """
         Args:
@@ -177,6 +180,7 @@ class TemporalConvNet(nn.Module):
                 blocks += [TemporalBlock(B, H, P, stride=1,
                                          padding=padding,
                                          dilation=dilation,
+                                         activation_combo=activation_combo, 
                                          norm_type=norm_type,
                                          causal=causal)]
             repeats += [nn.Sequential(*blocks)]
@@ -211,18 +215,21 @@ class TemporalConvNet(nn.Module):
 
 class TemporalBlock(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size,
-                 stride, padding, dilation, norm_type="gLN", causal=False):
+                 stride, padding, dilation, activation_combo, norm_type="gLN", causal=False):
         super(TemporalBlock, self).__init__()
+
+        depth_wise_act = activation_combo[1]
+
         # [M, B, K] -> [M, H, K]
         conv1x1 = nn.Conv1d(in_channels, out_channels, 1, bias=False)
-        prelu = nn.PReLU()
+        activation = nn.PReLU() if activation_combo[0] == 'prelu' else nn.ReLU()
         norm = chose_norm(norm_type, out_channels)
         # [M, H, K] -> [M, B, K]
         dsconv = DepthwiseSeparableConv(out_channels, in_channels, kernel_size,
-                                        stride, padding, dilation, norm_type,
+                                        stride, padding, dilation, depth_wise_act, norm_type,
                                         causal)
         # Put together
-        self.net = nn.Sequential(conv1x1, prelu, norm, dsconv)
+        self.net = nn.Sequential(conv1x1, activation, norm, dsconv)
 
     def forward(self, x):
         """
@@ -240,7 +247,7 @@ class TemporalBlock(nn.Module):
 
 class DepthwiseSeparableConv(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size,
-                 stride, padding, dilation, norm_type="gLN", causal=False):
+                 stride, padding, dilation, depth_wise_act, norm_type="gLN", causal=False):
         super(DepthwiseSeparableConv, self).__init__()
         # Use `groups` option to implement depthwise convolution
         # [M, H, K] -> [M, H, K]
@@ -250,16 +257,16 @@ class DepthwiseSeparableConv(nn.Module):
                                    bias=False)
         if causal:
             chomp = Chomp1d(padding)
-        prelu = nn.PReLU()
+        activation = nn.PReLU() if depth_wise_act == 'prelu' else nn.ReLU()
         norm = chose_norm(norm_type, in_channels)
         # [M, H, K] -> [M, B, K]
         pointwise_conv = nn.Conv1d(in_channels, out_channels, 1, bias=False)
         # Put together
         if causal:
-            self.net = nn.Sequential(depthwise_conv, chomp, prelu, norm,
+            self.net = nn.Sequential(depthwise_conv, chomp, activation, norm,
                                      pointwise_conv)
         else:
-            self.net = nn.Sequential(depthwise_conv, prelu, norm,
+            self.net = nn.Sequential(depthwise_conv, activation, norm,
                                      pointwise_conv)
 
     def forward(self, x):
