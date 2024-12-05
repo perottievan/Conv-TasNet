@@ -44,6 +44,8 @@ parser.add_argument('--R', default=4, type=int,
                     help='Number of repeats')
 parser.add_argument('--C', default=2, type=int,
                     help='Number of speakers')
+parser.add_argument('--activation_combo', default="prelu,prelu", type=str, 
+                    help="Activation functions in 1d conv block")
 parser.add_argument('--norm_type', default='gLN', type=str,
                     choices=['gLN', 'cLN', 'BN'], help='Layer norm type')
 parser.add_argument('--causal', type=int, default=0,
@@ -113,8 +115,9 @@ def main(args):
                                 num_workers=0)
     data = {'tr_loader': tr_loader, 'cv_loader': cv_loader}
     # model
+    activation_combo = args.activation_combo.split(',')
     model = ConvTasNet(args.N, args.L, args.B, args.H, args.P, args.X, args.R,
-                       args.C, norm_type=args.norm_type, causal=args.causal,
+                       args.C, activation_combo=activation_combo, norm_type=args.norm_type, causal=args.causal,
                        mask_nonlinear=args.mask_nonlinear)
     print(model)
     if args.use_cuda:
