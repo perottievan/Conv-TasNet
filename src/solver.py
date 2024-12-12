@@ -80,14 +80,18 @@ class Solver(object):
         for r in range(self.model_repeats):
             for x in range(self.model_blocks):
                 temp = p_relu_str_1.format(r, x)
-                lst_weights[(r, x, "act1")] = st_dict[temp]
+                # lst_weights[(r, x, "act1")] = torch.mean(st_dict[temp]).item()
+                lst_weights[temp] = torch.mean(st_dict[temp]).item()    # save average of each set of weights
                 # print(f"is this workin? {temp} {st_dict[temp]}")
                 temp = p_relu_str_2.format(r, x)
-                lst_weights[(r, x, "act2")] = st_dict[temp]
+                # lst_weights[(r, x, "act2")] = torch.mean(st_dict[temp]).item()
+                lst_weights[temp] = torch.mean(st_dict[temp]).item()
                 temp = global_1.format(r, x)
-                lst_weights[(r, x, "global1")] = st_dict[temp]
+                # lst_weights[(r, x, "global1")] = torch.mean(st_dict[temp]).item()
+                lst_weights[temp] = torch.mean(st_dict[temp]).item()
                 temp = global_2.format(r, x)
-                lst_weights[(r, x, "global2")] = st_dict[temp]
+                # lst_weights[(r, x, "global2")] = torch.mean(st_dict[temp]).item()
+                lst_weights[temp] = torch.mean(st_dict[temp]).item()
         # print(f'heyy {lst_weights}')
         return lst_weights
     
