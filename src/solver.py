@@ -51,6 +51,7 @@ class Solver(object):
         self.model_blocks = args.X
         self.epoch_weights = []
         self.all_epoch_weights = []
+        self.iter_weights={}
     
         self._reset()
 
