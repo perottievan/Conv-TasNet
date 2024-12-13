@@ -5,6 +5,8 @@ import os
 import time
 
 import torch
+import numpy as np
+import matplotlib.pyplot as plt
 
 from pit_criterion import cal_loss
 
@@ -48,6 +50,7 @@ class Solver(object):
         self.model_repeats = args.R
         self.model_blocks = args.X
         self.epoch_weights = []
+        self.all_epoch_weights = []
     
         self._reset()
 
@@ -71,30 +74,133 @@ class Solver(object):
         self.val_no_impv = 0
 
     def get_weights(self):
-        lst_weights = {}
-        p_relu_str_1 = "module.separator.network.2.{}.{}.net.1.weight"
-        p_relu_str_2 = "module.separator.network.2.{}.{}.net.3.net.1.weight"
-        global_1 = "module.separator.network.2.{}.{}.net.2.gamma"
-        global_2 = "module.separator.network.2.{}.{}.net.3.net.2.gamma"
+        lst_weights = []
+        # p_relu_str_1 = "module.separator.network.2.{}.{}.net.1.weight"
+        # p_relu_str_2 = "module.separator.network.2.{}.{}.net.3.net.1.weight"
+        #
+        # # p_relu_str_1 = "module.separator.network.2.{}.{}.net.0.weight"
+        # # p_relu_str_2 = "module.separator.network.2.{}.{}.net.3.net.0.weight"
+        # global_1 = "module.separator.network.2.{}.{}.net.2.gamma"
+        # global_2 = "module.separator.network.2.{}.{}.net.3.net.2.gamma"
+        st_dict = self.model.state_dict()
+        print(self.model.state_dict().keys())
+        # for r in range(self.model_repeats):
+        #     for x in range(self.model_blocks):
+        #         temp = p_relu_str_1.format(r, x)
+        #         lst_weights[(r, x, "act1")] = st_dict[temp]
+        #         # print(f"is this workin? {temp} {st_dict[temp]}")
+        #         temp = p_relu_str_2.format(r, x)
+        #         lst_weights[(r, x, "act2")] = st_dict[temp]
+        #         temp = global_1.format(r, x)
+        #         lst_weights[(r, x, "global1")] = st_dict[temp]
+        #         temp = global_2.format(r, x)
+        #         lst_weights[(r, x, "global2")] = st_dict[temp]
+        # # print(f'heyy {lst_weights}')
+
+        lst_conv_layers = ["module.separator.network.2.{}.{}.net.0.weight",
+                           "module.separator.network.2.{}.{}.net.2.gamma",
+                           "module.separator.network.2.{}.{}.net.2.beta",
+                           "module.separator.network.2.{}.{}.net.3.net.0.weight",
+                           "module.separator.network.2.{}.{}.net.3.net.2.gamma",
+                           "module.separator.network.2.{}.{}.net.3.net.2.beta",
+                           "module.separator.network.2.{}.{}.net.3.net.3.weight"]
         st_dict = self.model.state_dict()
         for r in range(self.model_repeats):
             for x in range(self.model_blocks):
-                temp = p_relu_str_1.format(r, x)
-                # lst_weights[(r, x, "act1")] = torch.mean(st_dict[temp]).item()
-                lst_weights[temp] = torch.mean(st_dict[temp]).item()    # save average of each set of weights
+                for layer in lst_conv_layers:
+                    temp = layer.format(r, x)
+                    lst_weights.append(st_dict[temp])
+                # temp = p_relu_str_1.format(r, x)
+        return lst_weights
+
+    def graph_densities(self):
+        # print(self.epoch_weights[0][5].size())
+
+        flat_weights = []
+        flat_count = 0
+        dead_count = 0
+        for i in range(len(self.all_epoch_weights[0])):
+            flat_tensor = self.all_epoch_weights[0][i].reshape(-1)
+            for value in flat_tensor:
+                # flat_weights.append(value)
+                flat_count += 1
+                if value<=0.01 and value >= -0.01:
+                    dead_count += 1
+
+        print("Total: ",flat_count)
+        print("Dead: ",dead_count)
+
+        # downsampled = np.random.choice(flat_weights, size=np.floor(len(flat_weights)/10000))
+        # #
+        # ranges = np.arange(0,1,0.1)
+        # plt.figure()
+        # plt.hist(downsampled, bins=ranges)
+        # plt.xlabel("Value Range")
+        # plt.ylabel("Frequency")
+        # plt.xticks(ranges)
+        # plt.savefig(self.save_folder + "/value_density.pdf", format="pdf", bbox_inches="tight")
+
+    def get_model_avgs(self, iter):
+        model_avg = self.get_avg_weights()
+        self.iter_weights[iter] = (sum(model_avg.values()) / len(model_avg))
+
+    def get_avg_weights(self):
+        lst_weights = {}
+        # p_relu_str_1 = "module.separator.network.2.{}.{}.net.1.weight"
+        # p_relu_str_2 = "module.separator.network.2.{}.{}.net.3.net.1.weight"
+        lst_conv_layers = ["module.separator.network.2.{}.{}.net.0.weight",
+                           "module.separator.network.2.{}.{}.net.2.gamma",
+                           "module.separator.network.2.{}.{}.net.2.beta",
+                           "module.separator.network.2.{}.{}.net.3.net.0.weight",
+                           "module.separator.network.2.{}.{}.net.3.net.2.gamma",
+                           "module.separator.network.2.{}.{}.net.3.net.2.beta",
+                           "module.separator.network.2.{}.{}.net.3.net.3.weight"]
+        st_dict = self.model.state_dict()
+        for r in range(self.model_repeats):
+            for x in range(self.model_blocks):
+                for layer in lst_conv_layers:
+                    temp = layer.format(r, x)
+                    lst_weights[f"{r} {x} glb2"] = torch.mean(st_dict[temp]).item()
+                # temp = p_relu_str_1.format(r, x)
+                # # lst_weights[(r, x, "act1")] = torch.mean(st_dict[temp]).item()
+                # lst_weights[f"{r} {x} act1"] = torch.mean(st_dict[temp]).item()
                 # print(f"is this workin? {temp} {st_dict[temp]}")
-                temp = p_relu_str_2.format(r, x)
-                # lst_weights[(r, x, "act2")] = torch.mean(st_dict[temp]).item()
-                lst_weights[temp] = torch.mean(st_dict[temp]).item()
-                temp = global_1.format(r, x)
-                # lst_weights[(r, x, "global1")] = torch.mean(st_dict[temp]).item()
-                lst_weights[temp] = torch.mean(st_dict[temp]).item()
-                temp = global_2.format(r, x)
-                # lst_weights[(r, x, "global2")] = torch.mean(st_dict[temp]).item()
-                lst_weights[temp] = torch.mean(st_dict[temp]).item()
+                # temp = global_1.format(r, x)
+                # # lst_weights[(r, x, "global1")] = torch.mean(st_dict[temp]).item()
+                # lst_weights[f"{r} {x} glb1"] = torch.mean(st_dict[temp]).item()
+                # # temp = p_relu_str_2.format(r, x)
+                # # # lst_weights[(r, x, "act2")] = torch.mean(st_dict[temp]).item()
+                # # lst_weights[f"{r} {x} act2"] = torch.mean(st_dict[temp]).item()
+                # temp = global_2.format(r, x)
+                # # lst_weights[(r, x, "global2")] = torch.mean(st_dict[temp]).item()
+                # lst_weights[f"{r} {x} glb2"] = torch.mean(st_dict[temp]).item()
         # print(f'heyy {lst_weights}')
         return lst_weights
     
+    def graph_epoch_weights(self):
+        print(self.epoch_weights)
+        graph_data = self.epoch_weights
+        plt.figure()
+        if len(self.epoch_weights) == 1:
+            graph_data = self.epoch_weights[0]
+            plt.plot(graph_data.keys(), graph_data.values(), marker='o')
+            plt.xlabel('Layers')
+            plt.ylabel('Weights')
+            plt.grid()
+            plt.savefig(self.save_folder + "/epoch_plot.pdf", format="pdf", bbox_inches="tight")
+
+    def graph_iter_weights(self):
+        print("iter here!!")
+        print(self.iter_weights)
+        plt.figure()
+        graph_data = self.iter_weights
+        print(f'wah {list(graph_data.keys())}')
+        plt.plot(graph_data.keys(), graph_data.values())
+        plt.xlabel('Iterations')
+        plt.ylabel('Weights')
+        plt.grid()
+        plt.savefig(self.save_folder + "/iter_plot.pdf", format="pdf", bbox_inches="tight")
+
     def train(self):
         # Train model multi-epoches
         for epoch in range(self.start_epoch, self.epochs):
@@ -110,7 +216,13 @@ class Solver(object):
             print('-' * 85)
 
             # Save weights after each epoch
-            self.epoch_weights.append(self.get_weights())
+            self.all_epoch_weights.append(self.get_weights())
+            self.epoch_weights.append(self.get_avg_weights())
+
+            weights_path = file_path = os.path.join(
+                self.save_folder, 'epoch%dweights.pth.tar' % (epoch + 1))
+            # torch.save(self.model.module.serialize(self.epoch_weights), weights_path)
+            self.graph_densities();
         
             # Save model each epoch
             if self.checkpoint:
@@ -187,6 +299,8 @@ class Solver(object):
                         update='replace',
                     )
 
+
+
     def _run_one_epoch(self, epoch, cross_valid=False):
         start = time.time()
         total_loss = 0
@@ -226,6 +340,9 @@ class Solver(object):
                           loss.item(), 1000 * (time.time() - start) / (i + 1)),
                       flush=True)
 
+            if i % 100 == 0:
+                self.get_model_avgs(i + 1)
+
             # visualizing loss using visdom
             if self.visdom_epoch and not cross_valid:
                 vis_iters_loss[i] = loss.item()
@@ -239,4 +356,7 @@ class Solver(object):
                         self.vis.line(X=x_axis, Y=y_axis, win=vis_window_epoch,
                                       update='replace')
 
+        self.graph_iter_weights()
         return total_loss / (i + 1)
+
+
